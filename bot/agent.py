@@ -1,113 +1,92 @@
 import os
-import asyncio
-from langchain_groq import ChatGroq
-from langchain_classic.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import PromptTemplate
-from langchain_core.documents import Document
+import json
+from groq import AsyncGroq
 
-from bot.memory_manager import get_chroma_store
-from tools.math_tool import get_math_tool
-from tools.system_tool import get_system_tool
+from bot.memory_manager import get_history_manager
+from tools.math_tool import evaluate_math, get_math_tool_schema
+from tools.system_tool import execute_system_command, get_system_tool_schema
 
-_agent_executor = None
-_chroma_store = None
-_retriever = None
+_client = None
 
 def _initialize_agent():
-    global _agent_executor, _chroma_store, _retriever
-    
+    global _client
     groq_api_key = os.getenv("GROQ_API_KEY")
-    groq_model = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+    if not groq_api_key:
+        raise ValueError("GROQ_API_KEY is not set.")
+    _client = AsyncGroq(api_key=groq_api_key)
+
+async def get_agent_response(user_input: str, user_id: str) -> str:
+    global _client
     
-    # Initialize the LLM via Groq API
-    llm = ChatGroq(
-        api_key=groq_api_key,
-        model_name=groq_model,
-        temperature=0.1
-    )
-    
-    # Initialize Persistent Vector Memory natively without legacy wrappers
-    _chroma_store = get_chroma_store()
-    _retriever = _chroma_store.as_retriever(search_kwargs=dict(k=5))
-    
-    # Load Python native tools
-    tools = [
-        get_math_tool(),
-        get_system_tool()
-    ]
-    
-    # Pure offline ReAct Chat prompt to maintain 100% local nature
-    template = '''You are M.AI, a highly intelligent local AI assistant.
-
-You have access to the following tools:
-
-{tools}
-
-To use a tool, you MUST use the exact following format:
-
-```
-Thought: Do I need to use a tool? Yes
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-```
-
-When you have a response to say to the Human, or if you do not need to use a tool, you MUST use the format:
-
-```
-Thought: Do I need to use a tool? No
-Final Answer: [your response here]
-```
-
-Begin!
-
-Relevant past context (recalled from Vector Memory):
-{chat_history}
-
-New Input: {input}
-{agent_scratchpad}'''
-
-    prompt = PromptTemplate.from_template(template)
-    
-    # Create the core reasoning agent (no built-in memory required)
-    agent = create_react_agent(llm=llm, tools=tools, prompt=prompt)
-    
-    # Initialize the executor that handles the standard ReAct loops
-    _agent_executor = AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=True,
-        handle_parsing_errors=True
-    )
-
-async def get_agent_response(user_input: str) -> str:
-    global _agent_executor, _retriever, _chroma_store
-    
-    if _agent_executor is None:
+    if _client is None:
         _initialize_agent()
         
-    assert _agent_executor is not None
-    assert _retriever is not None
-    assert _chroma_store is not None
+    groq_model = os.getenv("GROQ_MODEL", "llama3-8b-8192")
+    history_manager = get_history_manager()
     
-    # 1. Retrieve highly relevant past interactions using native ChromaDB Search
-    past_docs = _retriever.invoke(user_input)
+    # 1. Update memory state natively
+    history_manager.add_message(user_id, "user", user_input)
+    messages = history_manager.get_messages(user_id)
     
-    if past_docs:
-        chat_history_str = "\n---\n".join([doc.page_content for doc in past_docs])
-    else:
-        chat_history_str = "No relevant past context found."
+    # Prepend the system directive internally
+    system_prompt = {
+        "role": "system",
+        "content": "You are M.AI, a highly intelligent local AI assistant. You have access to local tools like MathCalculator and SystemTerminal. Answer questions concisely and thoughtfully. When using a tool, you do not need to explain that you are using it; just execute."
+    }
+    
+    current_messages = [system_prompt] + messages
+    
+    tools = [
+        get_math_tool_schema(),
+        get_system_tool_schema()
+    ]
+    
+    # 2. Invoke Groq asynchronously allowing for potential tool callbacks
+    while True:
+        try:
+            response = await _client.chat.completions.create(
+                model=groq_model,
+                messages=current_messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=0.1
+            )
+        except Exception as e:
+            # Revert the recent input if the API itself fails structurally
+            history_manager.get_messages(user_id).pop() 
+            raise e
+            
+        response_message = response.choices[0].message
         
-    # 2. Invoke the agent manually injecting the Chat History into the template prompt string
-    response = await _agent_executor.ainvoke({
-        "input": user_input,
-        "chat_history": chat_history_str
-    })
-    
-    output_text = response["output"]
-    
-    # 3. Permanently save this new interaction into the Chroma VectorStore
-    new_memory = f"Human: {user_input}\nM.AI Assistant: {output_text}"
-    _chroma_store.add_documents([Document(page_content=new_memory)])
-    
-    return output_text
+        # Determine exit condition: Did it return string content and no tools?
+        if not response_message.tool_calls:
+            final_output = response_message.content or "No response generated."
+            history_manager.add_message(user_id, "assistant", final_output)
+            return final_output
+            
+        # Append the native Assistant ToolCall object (required for Groq to maintain context)
+        current_messages.append(response_message)
+        
+        # Fulfill all requested tool executions locally
+        for tool_call in response_message.tool_calls:
+            function_name = tool_call.function.name
+            
+            try:
+                function_args = json.loads(tool_call.function.arguments)
+            except json.JSONDecodeError:
+                function_args = {}
+                
+            tool_response = ""
+            if function_name == "MathCalculator":
+                tool_response = evaluate_math(function_args.get("expression", ""))
+            elif function_name == "SystemTerminal":
+                tool_response = execute_system_command(function_args.get("command", ""))
+            else:
+                tool_response = f"Error: Unknown tool '{function_name}'"
+                
+            current_messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "name": function_name,
+                "content": str(tool_response)
+            })

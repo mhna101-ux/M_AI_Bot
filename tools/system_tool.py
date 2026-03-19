@@ -1,5 +1,4 @@
 import subprocess
-from langchain_core.tools import Tool
 
 def execute_system_command(command: str) -> str:
     try:
@@ -18,9 +17,21 @@ def execute_system_command(command: str) -> str:
     except Exception as e:
         return f"Failed to execute command: {e}"
 
-def get_system_tool() -> Tool:
-    return Tool(
-        name="SystemTerminal",
-        func=execute_system_command,
-        description="Useful for executing local system terminal commands on the host machine. Input should be a valid shell command."
-    )
+def get_system_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "SystemTerminal",
+            "description": "Useful for executing local system terminal commands on the host machine. Input should be a valid shell command.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "A valid shell command to execute on the local system."
+                    }
+                },
+                "required": ["command"]
+            }
+        }
+    }

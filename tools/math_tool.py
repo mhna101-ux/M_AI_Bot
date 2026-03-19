@@ -1,4 +1,4 @@
-from langchain_core.tools import Tool
+
 
 def evaluate_math(expression: str) -> str:
     try:
@@ -10,9 +10,21 @@ def evaluate_math(expression: str) -> str:
     except Exception as e:
         return f"Error evaluating math expression: {e}"
 
-def get_math_tool() -> Tool:
-    return Tool(
-        name="MathCalculator",
-        func=evaluate_math,
-        description="Useful for when you need to answer questions about math. Input should be a valid mathematical expression in Python syntax."
-    )
+def get_math_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "MathCalculator",
+            "description": "Useful for when you need to answer questions about math. Input should be a valid mathematical expression in Python syntax.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "A valid mathematical expression in Python syntax e.g '(5 + 4) * 2'"
+                    }
+                },
+                "required": ["expression"]
+            }
+        }
+    }

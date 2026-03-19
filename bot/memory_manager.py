@@ -1,19 +1,26 @@
-import os
-from langchain_chroma import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+class HistoryManager:
+    def __init__(self):
+        self._history = {}
+        # Enforce rolling window per-user so we don't blow up token windows
+        self.max_messages = 30
 
-def get_chroma_store() -> Chroma:
-    # Directory for persistent storage
-    persist_directory = os.path.join(os.path.dirname(os.path.dirname(__file__)), "chroma_db")
-    
-    # Use standard HuggingFace local sentence transformer embeddings
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    
-    # Create or load the persistent Chroma DB vector store directly
-    vectorstore = Chroma(
-        collection_name="m_ai_memory",
-        embedding_function=embeddings,
-        persist_directory=persist_directory
-    )
-    
-    return vectorstore
+    def get_messages(self, user_id: str) -> list:
+        if user_id not in self._history:
+            self._history[user_id] = []
+        return self._history[user_id]
+
+    def add_message(self, user_id: str, role: str, content: str):
+        if user_id not in self._history:
+            self._history[user_id] = []
+        
+        self._history[user_id].append({"role": role, "content": content})
+        
+        # Apply sliding window logic: pop oldest interactions beyond threshold
+        if len(self._history[user_id]) > self.max_messages:
+            self._history[user_id] = self._history[user_id][-self.max_messages:]
+
+# Singleton initialization
+_manager = HistoryManager()
+
+def get_history_manager() -> HistoryManager:
+    return _manager
