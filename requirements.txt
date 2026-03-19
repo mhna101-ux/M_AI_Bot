@@ -1,11 +1,4 @@
-langchain
-langchain-community
-langchain-core
-langchain-chroma
-langchain-classic
-python-telegram-bot>=20.0
-python-dotenv
-chromadb
-sentence-transformers
+python-telegram-bot
 langchain-groq
-
+python-dotenv
+requests
