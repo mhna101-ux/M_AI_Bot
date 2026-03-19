@@ -1,4 +1,7 @@
 python-telegram-bot
 langchain-groq
+langchain
+langchain-community
+langchain-classic
 python-dotenv
 requests
