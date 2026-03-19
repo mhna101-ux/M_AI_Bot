@@ -3,7 +3,8 @@ import logging
 import traceback
 import threading
 from dotenv import load_dotenv
-from flask import Flask
+import http.server
+import socketserver
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
@@ -18,11 +19,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-flask_app = Flask(__name__)
+class DummyHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b"M.AI Bot is running!")
+        
+    def log_message(self, format, *args):
+        # Suppress logging for every request
+        pass
 
-@flask_app.route('/')
-def health_check():
-    return "M.AI Bot is running!", 200
+class ReuseTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+def run_dummy_server():
+    port = int(os.environ.get('PORT', 8080))
+    with ReuseTCPServer(("0.0.0.0", port), DummyHandler) as httpd:
+        logger.info(f"Dummy HTTP server listening on port {port}...")
+        httpd.serve_forever()
 
 def run_telegram_bot():
     try:
@@ -67,9 +82,17 @@ def main():
     bot_thread = threading.Thread(target=run_telegram_bot, daemon=True)
     bot_thread.start()
     
-    # Start Flask server for Render health checks
-    port = int(os.environ.get('PORT', 8080))
-    flask_app.run(host='0.0.0.0', port=port)
+    # Start dummy HTTP server in a separate thread for Render health checks
+    server_thread = threading.Thread(target=run_dummy_server, daemon=True)
+    server_thread.start()
+
+    # Keep the main thread alive to allow background threads to run
+    import time
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
 
 if __name__ == '__main__':
     main()
