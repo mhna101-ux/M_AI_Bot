@@ -26,10 +26,10 @@ async def get_agent_response(user_input: str, user_id: str) -> str:
     history_manager.add_message(user_id, "user", user_input)
     messages = history_manager.get_messages(user_id)
     
-  system_prompt = {
-            "role": "system",
-            "content": "You are the AI controlling Whale Bot V17 Colossus. Your task is to make trading decisions based ONLY on the provided data. DO NOT calculate Dollar Cost Averaging (DCA) entry prices yourself. When a DCA is executed, the Python trading engine will provide you with the exact 'True Average Entry Price'. Based ONLY on that provided number, determine the new 'Take Profit' target to ensure a profitable exit."
-        }
+system_prompt = {
+        "role": "system",
+        "content": "You are the AI controlling Whale Bot V17 Colossus. Your task is to make trading decisions based ONLY on the provided data. DO NOT calculate Dollar Cost Averaging (DCA) entry prices yourself. When a DCA is executed, the Python trading engine will provide you with the exact 'True Average Entry Price'. Based ONLY on that provided number, determine the new 'Take Profit' target to ensure a profitable exit."
+    }
     
     current_messages = [system_prompt] + messages
     
