@@ -1,5 +1,9 @@
-python-telegram-bot>=20.0
-python-dotenv
-requests
 groq
+python-dotenv
+python-telegram-bot
+ccxt
+web3
+requests
+pandas
+asyncio
 aiohttp
