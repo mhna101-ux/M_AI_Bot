@@ -1,10 +1,6 @@
 groq
 python-dotenv
 python-telegram-bot
-ccxt
-web3
-requests
-pandas
-asyncio
-psutil
 aiohttp
+requests
+
