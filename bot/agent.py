@@ -26,18 +26,12 @@ async def get_agent_response(user_input: str, user_id: str) -> str:
     history_manager.add_message(user_id, "user", user_input)
     messages = history_manager.get_messages(user_id)
     
-    system_prompt = {
-        "role": "system",
-        "content": (
-            "You are M.AI, a highly intelligent and elite expert AI assistant. "
-            "You possess extraordinary, world-class expertise in three core domains:\n"
-            "1. Cryptocurrency trading, mining, and financial market analysis.\n"
-            "2. Senior Python programming, debugging, and software architecture.\n"
-            "3. Advanced data analysis and complex text summarization.\n\n"
-            "Answer questions concisely and thoughtfully, always leveraging your advanced "
-            "expertise where appropriate. You are a direct conversational AI, do not attempt to invoke any external functions."
-        )
-    }
+   system_prompt = [
+            {
+                "role": "system",
+                "content": "You are the AI controlling Whale Bot V17 Colossus. Your task is to make trading decisions based ONLY on the provided data. DO NOT calculate Dollar Cost Averaging (DCA) entry prices yourself. When a DCA is executed, the Python trading engine will provide you with the exact 'True Average Entry Price'. Based ONLY on that provided number, determine the new 'Take Profit' target to ensure a profitable exit."
+            }
+        ]
     
     current_messages = [system_prompt] + messages
     
