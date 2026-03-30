@@ -8,8 +8,13 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
+# استدعاء العقل (من مجلد bot)
 from bot.handlers import start, help_command, handle_message
 from bot.agent import _initialize_agent
+
+# استدعاء العضلات (من مجلد logic)
+# ملاحظة: تأكد أن ملفك اسمه CyberWhale_AI.py (بشرطة سفلية)
+from logic.CyberWhale_AI import main_trading_loop  
 
 # Setup basic logging
 logging.basicConfig(
@@ -23,7 +28,7 @@ async def run_dummy_server():
     app = web.Application()
     
     async def handle(request):
-        return web.Response(text="M.AI Bot is running!")
+        return web.Response(text="CyberWhale Colossus is LIVE and Trading!")
         
     app.router.add_get('/', handle)
     
@@ -36,7 +41,6 @@ async def run_dummy_server():
     logger.info(f"Dummy HTTP server listening on port {port}...")
     
     try:
-        # Keep the web server running indefinitely
         while True:
             await asyncio.sleep(3600)
     except asyncio.CancelledError:
@@ -45,78 +49,75 @@ async def run_dummy_server():
         raise
 
 async def run_telegram_bot():
-    """Initializes and runs the Telegram bot using PTB's asyncio interface."""
+    """Initializes and runs the Telegram bot."""
     app = None
     try:
-        print("Starting main program execution...")
         load_dotenv()
-        
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-        allowed_user_id = os.getenv("ALLOWED_USER_ID")
         
-        if not bot_token or not allowed_user_id:
-            logger.error("Error: Missing TELEGRAM_BOT_TOKEN or ALLOWED_USER_ID in .env file.")
+        if not bot_token:
+            logger.error("Error: Missing TELEGRAM_BOT_TOKEN.")
             return
 
-        print("1. Initializing setup...")
-        print("2. Setting up Memory...")
-        print("3. Initializing LangChain Agent...")
-        
+        logger.info("Initializing Agent and Telegram Application...")
         _initialize_agent()
-        print("LangChain Agent initialized successfully!")
-
-        print("4. Starting Telegram Application...")
+        
         app = ApplicationBuilder().token(bot_token).build()
 
-        # Handlers
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CommandHandler("help", help_command))
-        
-        # Any text message that isn't a command
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
         await app.initialize()
         await app.start()
         await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
         
-        print("\nSuccess! M.AI is now polling for messages.")
+        logger.info("Success! Telegram Bot is now polling.")
         
-        try:
-            # Keep the bot task running indefinitely
-            while True:
-                await asyncio.sleep(3600)
-        except asyncio.CancelledError:
-            logger.info("Telegram bot shutting down...")
-            if app:
-                await app.updater.stop()
-                await app.stop()
-                await app.shutdown()
-            raise
+        while True:
+            await asyncio.sleep(3600)
             
     except asyncio.CancelledError:
+        if app:
+            await app.updater.stop()
+            await app.stop()
+            await app.shutdown()
         raise
     except Exception as e:
-        print("\n=== FATAL ERROR CAUGHT ===")
-        print(f"Error text: {e}")
+        logger.error(f"FATAL ERROR in Telegram Bot: {e}")
         traceback.print_exc()
-        print("==========================")
+
+async def run_trading_engine():
+    """هذه الدالة تشغل محرك التداول (العضلات) من مجلد logic"""
+    try:
+        logger.info("Starting CyberWhale Trading Engine...")
+        # هنا نقوم بتشغيل الدالة الرئيسية في ملف CyberWhale_AI.py
+        await main_trading_loop() 
+    except asyncio.CancelledError:
+        logger.info("Trading engine shutting down...")
+        raise
+    except Exception as e:
+        logger.error(f"FATAL ERROR in Trading Engine: {e}")
+        traceback.print_exc()
 
 async def main():
-    """Runs BOTH the dummy aiohttp web server and the Telegram bot concurrenty."""
-    # Use asyncio.gather to run tasks in the same main asyncio event loop
+    """تشغيل الثلاثي المرح: السيرفر، البوت، ومحرك التداول"""
+    # إنشاء المهام
     server_task = asyncio.create_task(run_dummy_server())
     bot_task = asyncio.create_task(run_telegram_bot())
+    trading_task = asyncio.create_task(run_trading_engine())
     
     try:
-        await asyncio.gather(server_task, bot_task)
+        # تشغيل المهام الثلاثة معاً في نفس الوقت
+        await asyncio.gather(server_task, bot_task, trading_task)
     except asyncio.CancelledError:
-        # Cancel tasks on shutdown
         server_task.cancel()
         bot_task.cancel()
-        await asyncio.gather(server_task, bot_task, return_exceptions=True)
+        trading_task.cancel()
+        await asyncio.gather(server_task, bot_task, trading_task, return_exceptions=True)
 
 if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Successfully shut down M.AI Bot.")
+        logger.info("System successfully shut down by CTO.")
