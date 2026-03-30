@@ -21,6 +21,9 @@ async def get_agent_response(user_input: str, user_id: str) -> str:
         
     groq_model = os.getenv("GROQ_MODEL", "llama3-8b-8192")
     history_manager = get_history_manager()
+    history_manager = get_history_manager()
+    # اضف هذا السطر لمسح الذاكرة مرة واحدة فقط
+    history_manager.clear_history(user_id)
     
     # 1. Update memory state natively
     history_manager.add_message(user_id, "user", user_input)
