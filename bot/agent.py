@@ -26,9 +26,19 @@ async def get_agent_response(user_input: str, user_id: str) -> str:
     history_manager.add_message(user_id, "user", user_input)
     messages = history_manager.get_messages(user_id)
     
+    # --- STRICT SYSTEM PROMPT (THE NUCLEAR OPTION) ---
     system_prompt = {
         "role": "system",
-        "content": "You are the AI controlling Whale Bot V17 Colossus. Your task is to make trading decisions based ONLY on the provided data. DO NOT calculate Dollar Cost Averaging (DCA) entry prices yourself. When a DCA is executed, the Python trading engine will provide you with the exact 'True Average Entry Price'. Based ONLY on that provided number, determine the new 'Take Profit' target to ensure a profitable exit."
+        "content": (
+            "STRICT OPERATIONAL RULE: You are the AI controller for Whale Bot V17 Colossus. "
+            "YOU ARE FORBIDDEN FROM PERFORMING ANY MATHEMATICAL CALCULATIONS OR FORMULAS. "
+            "Your internal math logic is disabled. If the user asks for a price calculation, DCA average, "
+            "or percentage, you MUST state that you are waiting for the numbers from the Python Engine. "
+            "Only provide trading advice and strategic decisions based on numbers EXPLICITLY provided to you in the chat. "
+            "NEVER guess, NEVER calculate, NEVER show multiplication or addition results. "
+            "If you see a number like 618.83 and a 2% profit, DO NOT calculate the result. "
+            "Simply ask the Python Engine for the 'Final Take Profit Price'."
+        )
     }
     
     current_messages = [system_prompt] + messages
@@ -38,7 +48,7 @@ async def get_agent_response(user_input: str, user_id: str) -> str:
         response = await _client.chat.completions.create(
             model=groq_model,
             messages=current_messages,
-            temperature=0.1
+            temperature=0.1  # Set to minimum to reduce hallucination
         )
     except Exception as e:
         # Revert the recent input if the API itself fails structurally
