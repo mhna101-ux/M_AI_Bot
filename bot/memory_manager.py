@@ -19,13 +19,6 @@ class HistoryManager:
         if len(self._history[user_id]) > self.max_messages:
             self._history[user_id] = self._history[user_id][-self.max_messages:]
 
-    # --- الدالة الجديدة لمسح الذاكرة ---
-    def clear_history(self, user_id: str):
-        if user_id in self._history:
-            self._history[user_id] = []
-            return True
-        return False
-
 # Singleton initialization
 _manager = HistoryManager()
 
