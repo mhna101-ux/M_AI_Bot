@@ -1,6 +1,0 @@
-groq
-python-dotenv
-python-telegram-bot
-aiohttp
-requests
-asyncio
